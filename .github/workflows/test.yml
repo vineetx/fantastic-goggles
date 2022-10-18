@@ -6,7 +6,6 @@ on:
 
 jobs:
   test:
-    name: Test on ${{ github.ref }}
     runs-on: ubuntu-latest
     concurrency: install-${{ github.ref }}
     steps:
@@ -22,14 +21,3 @@ jobs:
           python3 setup.py install
           pip3 install pytest
           pytest
-
-      # - name: Install pytest
-      #   run: pip3 install pytest
-      #
-      # - name: Run tests
-      #   run: |
-      #     ls -al
-      #     pytest
-      #   timeout-minutes: 10
-      #   env:
-      #     FLASK_APP: hello
