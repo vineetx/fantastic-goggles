@@ -6,7 +6,6 @@ on:
 
 jobs:
   install:
-    name: Install on ${{ github.ref }}
     runs-on: ubuntu-latest
     concurrency: install-${{ github.ref }}
     steps:
