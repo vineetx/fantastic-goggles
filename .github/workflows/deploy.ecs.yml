@@ -147,19 +147,3 @@ jobs:
           service: ${{ steps.variables.outputs.deployment_ecs_service }}
           cluster: ${{ steps.variables.outputs.deployment_ecs_cluster }}
           wait-for-service-stability: true
-
-      - name: Handle deployment (success)
-        if: success()
-        uses: chrnorm/deployment-status@releases/v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          state: success
-          deployment_id: ${{ steps.deployment.outputs.deployment_id }}
-
-      - name: Handle deployment (failure)
-        if: failure()
-        uses: chrnorm/deployment-status@releases/v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          state: failure
-          deployment_id: ${{ steps.deployment.outputs.deployment_id }}
