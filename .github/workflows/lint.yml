@@ -1,4 +1,4 @@
-name: install
+name: Lint
 
 on:
   workflow_call:
@@ -6,7 +6,6 @@ on:
 
 jobs:
   lint:
-    name: Lint on ${{ github.ref }}
     runs-on: ubuntu-latest
     concurrency: install-${{ github.ref }}
     steps:
