@@ -1,0 +1,165 @@
+name: Deploy Docker to `DEPLOYMENT_ENVIRONMENT`
+
+on:
+  workflow_call:
+    inputs:
+      application_name:
+        description: 'The application to `deploy:workload`'
+        required: true
+        default: flask-app
+        type: string
+      deployment_environment:
+        description: 'The targeted `DEPLOYMENT_ENVIRONMENT`'
+        required: true
+        default: dev
+        type: string
+      deployment_ecs_cluster:
+        description: 'The targeted `DEPLOYMENT_ECS_CLUSTER`'
+        required: true
+        default: flask-app
+        type: string
+      deployment_ecs_task_definition:
+        description: 'The targeted `DEPLOYMENT_ECS_TASK_DEFINITION`'
+        required: true
+        default: api-dev
+        type: string
+      deployment_ecs_container:
+        description: 'The targeted `DEPLOYMENT_ECS_CONTAINER`'
+        required: true
+        default: flask-app
+        type: string
+      deployment_ecs_service:
+        description: 'The targeted `DEPLOYMENT_ECS_SERVICE`'
+        required: true
+        default: flask-app
+        type: string
+      deployment_version:
+        description: 'The targeted `DEPLOYMENT_VERSION`'
+        required: false
+        type: string
+      deployment_ecr_container:
+        description: 'The targeted `DEPLOYMENT_ECR_CONTAINER` (if it differs from the `DEPLOYMENT_ECS_CONTAINER`, which is the case for `DEPLOYMENT_ECS_CONTAINER=api-cron`, which uses `DEPLOYMENT_ECR_CONTAINER=api`)'
+        required: false
+        type: string
+    secrets:
+      AWS_ACCESS_KEY:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      application_name:
+        description: 'The application to `build`'
+        required: true
+        type: string
+      deployment_environment:
+        description: 'The targeted `DEPLOYMENT_ENVIRONMENT`'
+        required: true
+        type: string
+      deployment_ecs_cluster:
+        description: 'The targeted `DEPLOYMENT_ECS_CLUSTER`'
+        required: true
+        type: string
+      deployment_ecs_task_definition:
+        description: 'The targeted `DEPLOYMENT_ECS_TASK_DEFINITION`'
+        required: true
+        type: string
+      deployment_ecs_container:
+        description: 'The targeted `DEPLOYMENT_ECS_CONTAINER`'
+        required: true
+        type: string
+      deployment_ecs_service:
+        description: 'The targeted `DEPLOYMENT_ECS_SERVICE`'
+        required: true
+        type: string
+      deployment_version:
+        description: 'The targeted `DEPLOYMENT_VERSION`'
+        required: false
+        type: string
+      deployment_ecr_container:
+        description: 'The targeted `DEPLOYMENT_ECR_CONTAINER` (if it differs from the `DEPLOYMENT_ECS_CONTAINER`, which is the case for `DEPLOYMENT_ECS_CONTAINER=api-cron`, which uses `DEPLOYMENT_ECR_CONTAINER=api`)'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: eu-central-1
+
+jobs:
+  deploy:
+    name: Deploy a Docker image from ECR to ECS
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      deployments: write
+      pull-requests: write
+    steps:
+      - name: Run `git checkout`
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set variables from inputs
+        id: variables
+        run: |
+          echo "::set-output name=application_name::${{ github.event.inputs.application_name || inputs.application_name }}"
+          echo "::set-output name=deployment_environment::${{ github.event.inputs.deployment_environment || inputs.deployment_environment }}"
+          echo "::set-output name=deployment_ecs_cluster::${{ github.event.inputs.deployment_ecs_cluster || inputs.deployment_ecs_cluster }}"
+          echo "::set-output name=deployment_ecs_task_definition::${{ github.event.inputs.deployment_ecs_task_definition || inputs.deployment_ecs_task_definition }}"
+          echo "::set-output name=deployment_ecs_container::${{ github.event.inputs.deployment_ecs_container || inputs.deployment_ecs_container }}"
+          echo "::set-output name=deployment_ecs_service::${{ github.event.inputs.deployment_ecs_service || inputs.deployment_ecs_service }}"
+          echo "::set-output name=deployment_version::${{ github.event.inputs.deployment_version || inputs.deployment_version }}"
+          echo "::set-output name=deployment_ecr_container::${{ github.event.inputs.deployment_ecr_container || inputs.deployment_ecr_container }}"
+          echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+
+      - name: Set up AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # - name: Set up for deployment
+      #   uses: chrnorm/deployment-action@releases/v1
+      #   id: deployment
+      #   with:
+      #     environment: ${{ steps.variables.outputs.deployment_environment }}
+      #     description: '`${{ steps.variables.outputs.application_name }}-${{ steps.variables.outputs.deployment_environment }}` @ ${{ github.event.push.compare }}'
+
+      - name: Grab the existing `deployment_ecs_task_definition`
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ steps.variables.outputs.deployment_ecs_task_definition }} --query taskDefinition > task-definition.json
+
+      - name: Set the new `deployment_version` in the `deployment_ecs_task_definition`
+        id: task-definition
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ steps.variables.outputs.deployment_ecs_container }}
+          image: 'vineetx/flask-app:${{ steps.variables.outputs.sha_short }}'
+
+      - name: Push the updated `deployment_ecs_task_definition`
+        id: deployment-actual
+        uses: aws-actions/amazon-ecs-deploy-task-definition@master
+        with:
+          task-definition: ${{ steps.task-definition.outputs.task-definition }}
+          service: ${{ steps.variables.outputs.deployment_ecs_service }}
+          cluster: ${{ steps.variables.outputs.deployment_ecs_cluster }}
+          wait-for-service-stability: true
+
+      - name: Handle deployment (success)
+        if: success()
+        uses: chrnorm/deployment-status@releases/v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          state: success
+          deployment_id: ${{ steps.deployment.outputs.deployment_id }}
+
+      - name: Handle deployment (failure)
+        if: failure()
+        uses: chrnorm/deployment-status@releases/v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          state: failure
+          deployment_id: ${{ steps.deployment.outputs.deployment_id }}

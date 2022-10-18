@@ -1,0 +1,35 @@
+name: CD – `api
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.ecs.yml
+    with:
+      application_name: flask-app
+      deployment_environment: dev
+      deployment_ecs_container: flask-app
+    secrets:
+      DOCKER_USER: ${{secrets.DOCKER_USER}}
+      DOCKER_PASSWORD: ${{secrets.DOCKER_PASSWORD}}
+
+  deploy-fask-app:
+    needs:
+      - build
+    uses: ./.github/workflows/deploy.ecs.yml
+    with:
+      application_name: flask-app
+      deployment_environment: dev
+      deployment_ecs_cluster: dev-perks
+      deployment_ecs_task_definition: flask-app
+      deployment_ecs_container: flask-app
+      deployment_ecs_service: flask-app
+      deployment_version: dev
+    secrets:
+      AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
+      AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}

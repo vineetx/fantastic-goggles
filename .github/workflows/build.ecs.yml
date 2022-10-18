@@ -1,0 +1,76 @@
+name: Build Docker image
+
+on:
+  workflow_call:
+    inputs:
+      application_name:
+        description: 'The application to `build`'
+        required: true
+        default: flask-app
+        type: string
+      deployment_environment:
+        description: 'The targeted `DEPLOYMENT_ENVIRONMENT`'
+        required: false
+        default: dev
+        type: string
+      deployment_ecs_container:
+        description: 'The targeted `DEPLOYMENT_ECS_CONTAINER`'
+        required: true
+        type: string
+    secrets:
+      DOCKER_USER:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      application_name:
+        description: 'The application to `build`'
+        required: true
+        type: string
+      deployment_environment:
+        description: 'The targeted `DEPLOYMENT_ENVIRONMENT`'
+        required: false
+        type: string
+      deployment_ecs_container:
+        description: 'The targeted `DEPLOYMENT_ECS_CONTAINER`'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: eu-central-1
+
+jobs:
+  build:
+    name: Build & push a Docker image to Docker hub
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
+    steps:
+      - name: Run `git checkout`
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set variables from inputs
+        id: variables
+        run: |
+          echo "::set-output name=application_name::${{ github.event.inputs.application_name || inputs.application_name }}"
+          echo "::set-output name=deployment_environment::${{ github.event.inputs.deployment_environment || inputs.deployment_environment }}"
+          echo "::set-output name=deployment_ecs_container::${{ github.event.inputs.deployment_ecs_container || inputs.deployment_ecs_container }}"
+          echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build the Docker image
+        run: docker build . --file Dockerfile --tag vineetx/flask-app:${{ steps.variables.outputs.sha_short }}
+
+      - name: Docker Push
+        run: docker push vineetx/flask-app:${{ steps.variables.outputs.sha_short }}

@@ -1,0 +1,23 @@
+name: CI – PR Changes
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+jobs:
+  install:
+    uses: ./.github/workflows/install.yml
+
+  lint:
+    needs:
+      - install
+    uses: ./.github/workflows/lint.yml
+
+  test:
+    needs:
+      - install
+    uses: ./.github/workflows/test.yml
