@@ -96,7 +96,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Run `git checkout`
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -119,13 +119,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      # - name: Set up for deployment
-      #   uses: chrnorm/deployment-action@releases/v1
-      #   id: deployment
-      #   with:
-      #     environment: ${{ steps.variables.outputs.deployment_environment }}
-      #     description: '`${{ steps.variables.outputs.application_name }}-${{ steps.variables.outputs.deployment_environment }}` @ ${{ github.event.push.compare }}'
 
       - name: Grab the existing `deployment_ecs_task_definition`
         run: |
